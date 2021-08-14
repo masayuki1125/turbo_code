@@ -7,20 +7,17 @@
 import sys
 sys.path.append("../channel")
 from AWGN import _AWGN
-sys.path.append(("../estimation"))
-from monte_carlo import MC
 import numpy as np
 from fractions import Fraction
 ch=_AWGN()
-mc=MC()
 
 
 # In[3]:
 
 
-class initial():
+class coding():
 
-    def __init__(self,K):
+    def __init__(self,K=100):
       super().__init__()
 
       # to use in class:turbo_code
@@ -233,10 +230,11 @@ def turbo_decode(lambda_s,lambda_p1,lambda_p2,T,G,interleaver_sequence,de_interl
 # In[11]:
 
 
-class turbo_code(initial):
+class turbo_code(coding):
   def __init__(self,K):
     super().__init__(K)
   def encode(self):
+    print("turbo_code uses",self.K)
     information=generate_information(self.K)
     #information=np.zeros(self.K)#check
     codeword=turbo_encoder(information,self.interleaver_sequence,self.numerator,self.denominator)
@@ -256,32 +254,11 @@ class turbo_code(initial):
     return information,EST_information
 
 
-# In[12]:
-
-
-#結果のEbNodB_range,BLER,BERをtxtファイルへ書き込み
-class savetxt(initial,_AWGN,MC):
-
-  def savetxt(self,BLER,BER):
-
-    with open(self.filename,'w') as f:
-
-        #print("#N="+str(self.N),file=f)
-        print("#TX_antenna="+str(self.TX_antenna),file=f)
-        print("#RX_antenna="+str(self.RX_antenna),file=f)
-        print("#modulation_symbol="+str(self.M),file=f)
-        #print("#MAX_BLERR="+str(self.MAX_ERR),file=f)
-        print("#iteration number="+str(self.L_MAX),file=f)
-        print("#EsNodB,BLER,BER",file=f) 
-        for i in range(len(self.EbNodB_range)):
-            print(str(self.EbNodB_range[i]),str(BLER[i]),str(BER[i]),file=f)
-
-
 # In[13]:
 
 
 if __name__=="__main__":
-    K=[200,400,600,800,1000]
+    K=[200]
     for K in K:
         print("K=",K)
         tc=turbo_code(K)
