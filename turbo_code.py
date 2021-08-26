@@ -17,22 +17,22 @@ ch=_AWGN()
 
 class coding():
 
-    def __init__(self,K=100):
-      super().__init__()
+  def __init__(self,K=100):
+    super().__init__()
 
-      # to use in class:turbo_code
-      self.numerator=np.array([1,0,0])
-      self.denominator=np.array([1,0,1])
-      self.K=K
-      self.L_MAX=8
+    # to use in class:turbo_code
+    self.numerator=np.array([1,0,0])
+    self.denominator=np.array([1,0,1])
+    self.K=K
+    self.L_MAX=8
 
-      #set constant
-      self.interleaver_sequence,self.de_interleaver_sequence=interleave(self.K)
-      self.T,self.G=trellis(self.numerator,self.denominator)
+    #set constant
+    self.interleaver_sequence,self.de_interleaver_sequence=interleave(self.K)
+    self.T,self.G=trellis(self.numerator,self.denominator)
 
-      #to write txt file
-      self.R=str(1)+"|"+str(3)# use later
-      self.filename="turbo_code_{}_{}".format(self.K,self.R)
+    #to write txt file
+    self.R=str(1)+"|"+str(3)# use later
+    self.filename="turbo_code_{}_{}".format(self.K,self.R)
 
 
 # In[4]:
@@ -89,37 +89,37 @@ def IIR_encoder(information,numerator,denominator,memory):
 
 
 def binary(x,memory_num):
-    res=np.zeros((memory_num),dtype=int)
-    for i in range(memory_num):
-        res[memory_num-i-1]=x%2
-        x=x//2
+  res=np.zeros((memory_num),dtype=int)
+  for i in range(memory_num):
+      res[memory_num-i-1]=x%2
+      x=x//2
 
-    return res
+  return res
 
 def decimal(memory):
-    res=0
-    for i in range(len(memory)):
-        res=res+memory[i]*(2**(len(memory)-i-1))
-    
-    return res
+  res=0
+  for i in range(len(memory)):
+      res=res+memory[i]*(2**(len(memory)-i-1))
+  
+  return res
 
 def trellis(numerator,denominator):
-    memory_num=len(numerator)-1
-    T=[[],[]]
-    G=np.zeros((2,2**memory_num,2**memory_num))
-    #make T and G
-    for j in ([0,1]):      
-      for i in range(2**memory_num):
-          memory=binary(i,memory_num)
-          #print(memory)
-          information=np.array([j])
-          parity,memory=IIR_encoder(information,numerator,denominator,memory)
-          #print(memory)
-          T[j]=T[j]+[(i,decimal(memory))]
-          G[0,i,decimal(memory)]=2*j-1
-          G[1,i,decimal(memory)]=2*parity-1
+  memory_num=len(numerator)-1
+  T=[[],[]]
+  G=np.zeros((2,2**memory_num,2**memory_num))
+  #make T and G
+  for j in ([0,1]):      
+    for i in range(2**memory_num):
+        memory=binary(i,memory_num)
+        #print(memory)
+        information=np.array([j])
+        parity,memory=IIR_encoder(information,numerator,denominator,memory)
+        #print(memory)
+        T[j]=T[j]+[(i,decimal(memory))]
+        G[0,i,decimal(memory)]=2*j-1
+        G[1,i,decimal(memory)]=2*parity-1
 
-    return T,G
+  return T,G
 
 
 # In[8]:
@@ -256,13 +256,13 @@ class turbo_code(coding):
 
 # In[13]:
 
-
+'''
 if __name__=="__main__":
     K=[200]
     for K in K:
         print("K=",K)
         tc=turbo_code(K)
-        st=savetxt()
-        BLER,BER=mc.monte_carlo(tc.turbo_code)
-        st.savetxt(BLER,BER)
-
+        #st=savetxt()
+        #BLER,BER=mc.monte_carlo(tc.turbo_code)
+        #st.savetxt(BLER,BER)
+'''
