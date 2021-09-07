@@ -65,7 +65,7 @@ class MC():
         self.RX_antenna=1
         self.MAX_ERR=8
         self.EbNodB_start=-5
-        self.EbNodB_end=1
+        self.EbNodB_end=2
         self.EbNodB_range=np.arange(self.EbNodB_start,self.EbNodB_end,0.5) #0.5dBごとに測定
 
     #特定のNに関する出力
@@ -161,7 +161,7 @@ class savetxt(turbo_code,_AWGN,MC):
         print("#RX_antenna="+str(self.RX_antenna),file=f)
         print("#modulation_symbol="+str(self.M),file=f)
         print("#MAX_BLERR="+str(self.MAX_ERR),file=f)
-        print("#iteration number="+str(self.max_iter),file=f)
+        print("#iteration number="+str(self.max_itr),file=f)
         print("#EsNodB,BLER,BER",file=f) 
         for i in range(len(self.EbNodB_range)):
             print(str(self.EbNodB_range[i]),str(BLER[i]),str(BER[i]),file=f)
