@@ -1,0 +1,11 @@
+#TX_antenna=1
+#RX_antenna=1
+#modulation_symbol=2
+#MAX_BLERR=8
+#iteration number=3
+#EsNodB,BLER,BER
+-3 1.0 0.01812875
+-2 1.0 0.00209125
+-1 0.2 5.75e-05
+0 0.0125 2.5e-06
+1 0.0 0.0

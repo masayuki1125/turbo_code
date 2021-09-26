@@ -18,7 +18,7 @@ class coding():
     self.numerator=np.array([1,0,0])
     self.denominator=np.array([1,0,1])
     self.K=K
-    self.max_itr=8
+    self.max_itr=3
 
     #check
     if len(self.numerator)!=len(self.denominator):
