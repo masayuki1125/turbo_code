@@ -173,7 +173,7 @@ class savetxt(turbo_code,_AWGN,MC):
 if __name__=="__main__":
     mc=MC()
 
-    N_list=[10000]
+    N_list=[]
     result_ids_array=[]
     print(mc.EbNodB_range)
     for i,N in enumerate(N_list):
