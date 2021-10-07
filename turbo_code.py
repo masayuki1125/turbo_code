@@ -1,338 +1,374 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[24]:
+# In[162]:
 
 
-from AWGN import _AWGN
-import numpy as np
+# -*- coding: utf-8 -*-
+"""
+Created on 21 Aug 2014
+Functions and classes for convolutional and turbo codes.
+Author: Venkat Venkatesan
+from https://github.com/venkat0791/codec
+"""
 import math
-from scipy import sparse 
+import numpy as np
+from AWGN import _AWGN
 ch=_AWGN()
 
 
-# In[25]:
+# In[163]:
 
 
-class coding():
+class Conv(object):
+  INF = 1e6
 
-  def __init__(self,K):
-    super().__init__()
+  def __init__(self, back_poly, fwd_polys):
 
-    # to use in class:turbo_code
-    #[1,x,x^2,x^3,....]
-    self.numerator=np.array([1,0,0,0,1])
-    self.denominator=np.array([1,1,1,1,1])
-    self.K=K
-    self.max_itr=6
+    # Number of bits in encoder state.
+    self.mem_len = math.floor(math.log(back_poly) / math.log(2))
 
-    #check
-    if len(self.numerator)!=len(self.denominator):
-      print("please set the same length between numerator and denominator!")
-      exit()
+    # Encoder state space (integers in the range [0, 2 ** mem_len)).
+    self.state_space = tuple(n for n in range(1 << self.mem_len))
 
-    #set constant
-    self.interleaver_sequence,self.de_interleaver_sequence=self.interleave()
-    np.savetxt("interleaver",self.interleaver_sequence,fmt='%i')
+    # Number of encoder output bits per input bit.
+    self.n_out = len(fwd_polys)
 
-    self.G=self.trellis()
-    self.G_for_alpha=sparse.csc_matrix(self.G[0])
-    self.G_for_beta=sparse.csr_matrix(self.G[0])
+    # MSB of next encoder state, given current state and input bit.
+    self.next_state_msb = tuple(tuple(self.bitxor(back_poly & ((b << self.mem_len) + s))for s in self.state_space) for b in (0, 1))
 
-    #to write txt file
-    self.R=str(1)+"|"+str(3)# use later
-    self.filename="turbo_code_{}_{}".format(self.K,self.R)
+    # Encoder output bits, given current state and input bit.
+    self.out_bits = tuple(tuple(tuple(self.bitxor(p & ((self.next_state_msb[b][s] << self.mem_len) + s))for p in fwd_polys) for s in self.state_space) for b in (0, 1))
+    
+    # Next encoder state, given current state and input bit.
+    self.next_state = tuple(tuple((self.next_state_msb[b][s] << (self.mem_len - 1)) + (s >> 1)for s in self.state_space) for b in (0, 1))
 
-  def interleave(self):
-    interleaver_sequence=np.arange(self.K,dtype='int')
-    np.random.shuffle(interleaver_sequence)
-    de_interleaver_sequence=np.argsort(interleaver_sequence)
-    return interleaver_sequence,de_interleaver_sequence
+    return
 
-  
+
+# In[164]:
+
+
+class Conv(Conv):
+
   @staticmethod
-  def binary(x,memory_num):
-    res=np.zeros((memory_num),dtype=int)
-    for i in range(memory_num):
-      res[memory_num-i-1]=x%2
-      x=x//2
+  def bitxor(num):
+    '''
+    Returns the XOR of the bits in the binary representation of the
+    nonnegative integer num.
+    '''
 
-    return res
-  
+    count_of_ones = 0
+    while num > 0:
+      count_of_ones += num & 1
+      num >>= 1
+
+    return count_of_ones % 2
+
   @staticmethod
-  def decimal(memory):
-    res=0
-    for i in range(len(memory)):
-      res=res+memory[i]*(2**(len(memory)-i-1))
+  def maxstar(eggs, spam, max_log=False):
+    '''
+    Returns log(exp(eggs) + exp(spam)) if not max_log, and max(eggs, spam)
+    otherwise.
+    '''
+    return max(eggs, spam) + (0 if max_log else math.log(1 + math.exp(-abs(spam - eggs))))
 
-    return res
 
-  def trellis(self):
-    memory_num=len(self.numerator)-1
+# In[165]:
+
+
+class Conv(Conv):
+
+  def encode(self, info_bits):
+
+    info_bits = np.asarray(info_bits).ravel()
+    n_info_bits = info_bits.size
+
+    code_bits, enc_state = -np.ones(
+    self.n_out * (n_info_bits + self.mem_len), dtype=int), 0
     
-    G=np.zeros((2,2**memory_num,2**memory_num))
-    
-    #make G
-    for j in ([0,1]):  
-      for i in range(2**memory_num):
+    for k in range(n_info_bits + self.mem_len):
+      in_bit = (info_bits[k] if k < n_info_bits else self.next_state_msb[0][enc_state])
+      code_bits[self.n_out * k : self.n_out * (k + 1)] = (self.out_bits[in_bit][enc_state])
+      enc_state = self.next_state[in_bit][enc_state]
 
-        #iを2進数に変更
-        memory=self.binary(i,memory_num)
-
-        #print(memory)
-        information=np.array([j])
-        parity,memory=self.IIR_encoder_for_trellis(information,memory)
-
-        #print(memory)
-        G[0,i,self.decimal(memory)]=2*j-1
-        G[1,i,self.decimal(memory)]=2*parity-1
-
-    return G
-
-  def IIR_encoder_for_trellis(self,information,memory):
-  
-    tmp=np.zeros(len(memory)+1,dtype=int)
-    parity=np.zeros(len(information))
-
-    for i,m in enumerate(information):
-
-      #step1 calculate denominator and store deno_res
-      tmp[0]=m
-      tmp[1:]=memory
-      deno_res=np.sum(tmp*self.denominator)%2
-      #print(deno_res)
-
-      #step2 calculate numerator and generate codeword
-      tmp[0]=deno_res
-      num_res=np.sum(tmp*self.numerator)%2
-      #print(num_res)
-      memory[:]=tmp[:len(tmp)-1]
-
-      parity[i]=num_res
-
-    return parity,memory
+    return code_bits
 
 
-# In[27]:
+# In[166]:
 
 
-class encoding(coding):
+class Conv(Conv):
 
-  def __init__(self,K):
-    super().__init__(K)
+  def _branch_metrics(self, out_bit_llrs, pre_in_bit_llr=0):
 
-  def generate_information(self):
-    #generate information
-    information=np.random.randint(0,2,self.K)
-    return information
+    gamma_val = ([pre_in_bit_llr / 2 for s in self.state_space],[-pre_in_bit_llr / 2 for s in self.state_space])
+    for enc_state in self.state_space:
+      for bit0, bit1, val in zip(self.out_bits[0][enc_state],self.out_bits[1][enc_state],out_bit_llrs):
+        gamma_val[0][enc_state] += val / 2 if bit0 == 0 else -val / 2
+        gamma_val[1][enc_state] += val / 2 if bit1 == 0 else -val / 2
 
-  def IIR_encoder(self,information):
+    return gamma_val
 
-    #initiarize memory
-    memory=np.zeros(len(self.numerator)-1,dtype=int)
-  
-    tmp=np.zeros(len(memory)+1,dtype=int)
-    parity=np.zeros(len(information))
-    term_bits_info=np.zeros(len(memory))
-    term_bits_parity=np.zeros(len(memory))
+  def _update_path_metrics(self, out_bit_llrs, path_metrics, best_bit):
 
-    for i in range(len(information)+len(memory)):
+    gamma_val = self._branch_metrics(out_bit_llrs)
 
-      #step1 calculate denominator and store deno_res
-      if i<len(information):
-        tmp[0]=information[i]
-        
-      tmp[1:]=memory
-      deno_res=np.sum(tmp*self.denominator)%2
+    pmn = path_metrics[:]
+    for enc_state in self.state_space:
+      cpm0 = gamma_val[0][enc_state] + pmn[self.next_state[0][enc_state]]
+      cpm1 = gamma_val[1][enc_state] + pmn[self.next_state[1][enc_state]]
+      path_metrics[enc_state], best_bit[enc_state] = ((cpm0, 0) if cpm0 >= cpm1 else (cpm1, 1))
 
-      if i>=len(information):
-        deno_res=0
-        B=np.sum(tmp[1:]*self.denominator[1:])%2#for termination bits
-        term_bits_info[i-len(information)]=B
-      #print(deno_res)
-
-      #step2 calculate numerator and generate codeword
-      tmp[0]=deno_res
-      num_res=np.sum(tmp*self.numerator)%2
-      #print(num_res)
-      memory[:]=tmp[:len(tmp)-1]
-
-      if i<len(information):
-        parity[i]=num_res
-      else:
-        term_bits_parity[i-len(information)]=num_res
-    
-    if np.any(memory!=0):
-      print("termination error")
-      print(memory)
-
-    return parity,term_bits_info,term_bits_parity
-
-  def turbo_encode(self):
-      
-    information=self.generate_information()
-    #information=np.array([1,1,0,0,1,0,1,0,1,1])
-    k=len(information)#info num
-    mu=len(self.numerator)-1#memory num
-    
-    codeword=np.zeros(3*k+4*mu)#info+tail bits*2
-    codeword[0:3*k:3]=information
-    codeword[1:3*k:3],codeword[3*k:3*k+2*mu:2],codeword[3*k+1:3*k+2*mu:2]=self.IIR_encoder(information)
-    codeword[2:3*k:3],codeword[3*k+2*mu:3*k+4*mu:2],codeword[3*k+2*mu+1:3*k+4*mu:2]=self.IIR_encoder(information[self.interleaver_sequence])
-
-    return information,codeword
+    return
 
 
-# In[30]:
+# In[167]:
 
 
-class decoding(coding):
-  
-  @staticmethod
-  def maxstr(x1,x2=np.nan):
-    UPPER_THRES=5
-    if np.isnan(x2):
-      return x1
+class Conv(Conv):
+  def decode_viterbi(self, code_bit_llrs):
+
+    code_bit_llrs = np.asarray(code_bit_llrs).ravel()
+    n_in_bits = int(code_bit_llrs.size / self.n_out)
+    n_info_bits = n_in_bits - self.mem_len
+
+    # Path metric for each state at time n_in_bits.
+    path_metrics = [(0 if s == 0 else -Conv.INF) for s in self.state_space]
+
+    # Best input bit in each state at times 0 to n_in_bits - 1.
+    best_bit = [[-1 for s in self.state_space] for k in range(n_in_bits)]
+
+    # Start at time n_in_bits - 1 and work backward to time 0, finding
+    # path metric and best input bit for each state at each time.
+    for k in range(n_in_bits - 1, -1, -1):
+      self._update_path_metrics(
+      code_bit_llrs[self.n_out * k : self.n_out * (k + 1)],path_metrics, best_bit[k])
+
+    # Decode by starting in state 0 at time 0 and tracing path
+    # corresponding to best input bits.
+    info_bits_hat, enc_state = -np.ones(n_info_bits, dtype=int), 0
+    for k in range(n_info_bits):
+      info_bits_hat[k] = best_bit[k][enc_state]
+      enc_state = self.next_state[info_bits_hat[k]][enc_state]
+
+    return info_bits_hat
+
+  def _update_alpha(self,out_bit_llrs,pre_in_bit_llr,alpha_val,alpha_val_next,max_log):
+
+    gamma_val = self._branch_metrics(out_bit_llrs, pre_in_bit_llr)
+
+    for enc_state in self.state_space:
+      alpha_val_next[self.next_state[0][enc_state]] = self.maxstar(alpha_val_next[self.next_state[0][enc_state]],alpha_val[enc_state] + gamma_val[0][enc_state],max_log)
+      alpha_val_next[self.next_state[1][enc_state]] = self.maxstar(alpha_val_next[self.next_state[1][enc_state]],alpha_val[enc_state] + gamma_val[1][enc_state],max_log)
+
+    return
+
+
+# In[168]:
+
+
+class Conv(Conv):
+
+  def _update_beta_tail(self, out_bit_llrs, beta_val, max_log):
+
+    gamma_val = self._branch_metrics(out_bit_llrs, 0)
+
+    bvn = beta_val[:]
+    for enc_state in self.state_space:
+      beta_val[enc_state] = self.maxstar(gamma_val[0][enc_state] + bvn[self.next_state[0][enc_state]],gamma_val[1][enc_state] + bvn[self.next_state[1][enc_state]],max_log)
+    return
+
+  def _update_beta(self,out_bit_llrs,pre_in_bit_llr,alpha_val,beta_val,max_log):
+
+    gamma_val = self._branch_metrics(out_bit_llrs, pre_in_bit_llr)
+
+    met0 = -Conv.INF
+    met1 = -Conv.INF
+    bvn = beta_val[:]
+    for enc_state in self.state_space:
+      beta_val[enc_state] = self.maxstar(gamma_val[0][enc_state] + bvn[self.next_state[0][enc_state]],gamma_val[1][enc_state] + bvn[self.next_state[1][enc_state]],max_log)
+      met0 = self.maxstar(alpha_val[enc_state] + gamma_val[0][enc_state]+ bvn[self.next_state[0][enc_state]],met0,max_log)
+      met1 = self.maxstar(alpha_val[enc_state] + gamma_val[1][enc_state]+ bvn[self.next_state[1][enc_state]],met1,max_log)
+    return met0 - met1
+
+
+# In[169]:
+
+
+class Conv(Conv):
+  def decode_bcjr(self,code_bit_llrs,pre_info_bit_llrs=None,max_log=False):
+
+    code_bit_llrs = np.asarray(code_bit_llrs).ravel()
+    n_in_bits = int(code_bit_llrs.size / self.n_out)
+    n_info_bits = n_in_bits - self.mem_len
+
+    if pre_info_bit_llrs is None:
+      pre_info_bit_llrs = np.zeros(n_info_bits)
     else:
-      tmp1=max(x1,x2)
-      tmp2=abs(x1-x2)
-      if tmp2>UPPER_THRES:
-        res=tmp1 #only max operation
-      else:
-        res=tmp1-0.0098*tmp2**3+0.1164*tmp2**2+0.6855
-      return res
+      pre_info_bit_llrs = np.asarray(pre_info_bit_llrs).ravel()
 
-  def BCJR(self,lambda_s,lambda_p,lambda_pri):
+    # FORWARD PASS: Recursively compute alpha values for all states at
+    # all times from 1 to n_info_bits - 1, working forward from time 0.
+    alpha = [[(0 if s == 0 and k == 0 else -Conv.INF)for s in self.state_space] for k in range(n_info_bits)]
+    for k in range(n_info_bits - 1):
+      out_bit_llrs = code_bit_llrs[self.n_out * k : self.n_out * (k + 1)]
+      self._update_alpha(out_bit_llrs, pre_info_bit_llrs[k],alpha[k], alpha[k + 1], max_log)
 
-    #prepere matrices
-    log_parity=np.full((len(lambda_s),self.G[0].shape[0],self.G[0].shape[1]),np.nan)
-    log_gamma=np.full((len(lambda_s),self.G[0].shape[0],self.G[0].shape[1]),np.nan)
-    log_alpha=np.full((len(lambda_s)+1,self.G[0].shape[0]),np.nan)
-    log_beta=np.full(log_alpha.shape,np.nan) # the same as beta
-    res=np.full((len(lambda_s)),np.nan) #結果のLLRを格納する配列
-    lambda_e=np.zeros(len(lambda_s))
+    # BACKWARD PASS (TAIL): Recursively compute beta values for all
+    # states at time n_info_bits, working backward from time n_in_bits.
+    beta = [(0 if s == 0 else -Conv.INF) for s in self.state_space]
+    for k in range(n_in_bits - 1, n_info_bits - 1, -1):
+      out_bit_llrs = code_bit_llrs[self.n_out * k : self.n_out * (k + 1)]
+      self._update_beta_tail(out_bit_llrs, beta, max_log)
 
-    #set initial state
-    log_alpha[0]=10**-10
-    log_alpha[0,0]=0
-    log_beta[len(lambda_s)]=10**-10
-    log_beta[len(lambda_s),0]=0
+    # BACKWARD PASS: Recursively compute beta values for all states at
+    # each time k from 0 to n_info_bits - 1, working backward from time
+    # n_info_bits, and also obtaining the post-decoding LLR for the info
+    # bit at each time.
+    post_info_bit_llrs = np.zeros_like(pre_info_bit_llrs)
+    for k in range(n_info_bits - 1, - 1, -1):
+      out_bit_llrs = code_bit_llrs[self.n_out * k : self.n_out * (k + 1)]
+      post_info_bit_llrs[k] = self._update_beta(out_bit_llrs, pre_info_bit_llrs[k],alpha[k], beta, max_log)
 
-    #culculate gamma
-    for i in range(len(lambda_s)):
-      log_parity[i]=1/2*lambda_p[i]*self.G[1]
-      log_gamma[i]=1/2*lambda_s[i]*self.G[0]+1/2*lambda_pri[i]*self.G[0]+log_parity[i]
-    
-    ##calculate alpha
-    for i in range(1,len(lambda_s)):
-      for k in range(self.G[0].shape[1]): #縦列ごとに見ていく
-        tmp=np.nan
-        for j in (self.G_for_alpha.indices[self.G_for_alpha.indptr[k]:self.G_for_alpha.indptr[k+1]]):#値が入っている部分だけ取る
-            log_alpha[i,k]=self.maxstr(log_alpha[i-1,j]+log_gamma[i-1,j,k],tmp)
-            tmp=log_alpha[i,k]
-    #check alpha
-    #np.savetxt("alpha",log_alpha)       
-    
-    ##calculate beta
-    for i in range(len(lambda_s)-1,0,-1):
-      for j in range(self.G[0].shape[0]): #横列ごとに見ていく
-        tmp=np.nan
-        for k in (self.G_for_beta.indices[self.G_for_beta.indptr[j]:self.G_for_beta.indptr[j+1]]):#値が入っている部分だけ取る
-            log_beta[i,j]=self.maxstr(log_beta[i+1,k]+log_gamma[i,j,k],tmp)
-            tmp=log_beta[i,j]
-    #check beta
-    #np.savetxt("beta",log_beta)
-    #from IPython.core.debugger import Pdb; Pdb().set_trace()
+    return post_info_bit_llrs
 
-    #それぞれのpathについて考える
-    for i in range(len(lambda_s)):
-      tmp_plus=np.nan #＋のpathを総てmaxstrした値を格納
-      tmp_minus=np.nan #-のpathを総てmaxstrした値を格納
-      #総てのpathについて考える
-      for j in range(self.G[0].shape[0]):
-        for k in (self.G_for_beta.indices[self.G_for_beta.indptr[j]:self.G_for_beta.indptr[j+1]]):#値が入っている部分だけ取る
-            if self.G[0,j,k]==-1:#info_bit=0のパスだったとき   
-                tmp_minus=self.maxstr(log_alpha[i,j]+log_beta[i+1,k]+log_parity[i,j,k],tmp_minus)
-            elif self.G[0,j,k]==1:#info_bit=1のパスだったとき
-                tmp_plus=self.maxstr(log_alpha[i,j]+log_beta[i+1,k]+log_parity[i,j,k],tmp_plus)
-            else:
-              print("error")
-   
-      lambda_e[i]=tmp_plus-tmp_minus
-    
-    #return LLR 
-    res=lambda_e+lambda_s+lambda_pri
 
-    return res,lambda_e
+# In[170]:
 
-  def turbo_decode(self,Lc,max_itr):
-    #considering term_bits
-    k=self.K
-    mu=len(self.numerator)-1#memory num
 
-    lambda_s,lambda_p1,lambda_p2=Lc[:3*k:3],Lc[1:3*k:3],Lc[2:3*k:3]
+class Turbo(object):
 
-    #with term_bits
-    in_lambda_s=lambda_s[self.interleaver_sequence]
-    lambda_s=np.concatenate((lambda_s,Lc[3*k:3*k+2*mu:2]))
-    in_lambda_s=np.concatenate((in_lambda_s,Lc[3*k+2*mu:3*k+4*mu:2]))
+  def __init__(self, back_poly, parity_polys,K):
+    #information length
+    self.K=K
 
-    lambda_p1=np.concatenate((lambda_p1,Lc[3*k+1:3*k+2*mu:2]))
-    lambda_p2=np.concatenate((lambda_p2,Lc[3*k+2*mu+1:3*k+4*mu:2]))
+    # Encoder and decoder for constituent RSC code
+    self.rsc = Conv(back_poly, [back_poly] + parity_polys)
 
-    #puncturing(optional)
-    #lambda_p1[0:3*k:2]=0
-    #lambda_p2[1:3*k:2]=0
+    # Number of output bits per input bit and number of tail bits
+    # per input block for the turbo code
+    self.n_out = self.rsc.n_out + (self.rsc.n_out - 1)
+    self.n_tail_bits = self.rsc.n_out * self.rsc.mem_len * 2
 
-    itr=0
-    lambda_e=np.zeros((len(lambda_s)))
-    
-    while itr<max_itr:
-          
-      #first decoder
-      res,lambda_e=self.BCJR(lambda_s,lambda_p1,lambda_e)
-      #interleave
-      lambda_e[:k]=lambda_e[self.interleaver_sequence]
-      #print(lambda_e)
+    # Turbo interleaver and deinterleaver
+    self.turbo_int, self.turbo_deint = [], []
 
-      #second decoder
-      res,lambda_e=self.BCJR(in_lambda_s,lambda_p2,lambda_e)
-      #interleave
-      lambda_e[:k]=lambda_e[self.de_interleaver_sequence]
-      #print(lambda_e)
+    return
+
+  @staticmethod
+  def interleave(n_info_bits):
+    turbo_int=np.arange(n_info_bits)
+    np.random.shuffle(turbo_int)
+    turbo_deint=np.argsort(turbo_int)
+    return turbo_int,turbo_deint
+
+
+# In[171]:
+
+
+class Turbo(Turbo):
+
+  def encode(self, info_bits):
+
+    info_bits = np.asarray(info_bits).ravel()
+    n_info_bits = info_bits.size
+
+    if n_info_bits != len(self.turbo_int):
+      self.turbo_int, self.turbo_deint = self.interleave(n_info_bits)
+
+    # Get code bits from each encoder.
+    ctop = self.rsc.encode(info_bits)
+    cbot = self.rsc.encode(info_bits[self.turbo_int])
+
+    # Assemble code bits from both encoders.
+    code_bits, pos = -np.ones(self.n_out * n_info_bits + self.n_tail_bits, dtype=int), 0
+
+    for k in range(n_info_bits):
+      code_bits[pos : pos + self.rsc.n_out] = ctop[self.rsc.n_out * k : self.rsc.n_out * (k + 1)]
+      pos += self.rsc.n_out
+      code_bits[pos : pos + self.rsc.n_out - 1] = cbot[self.rsc.n_out * k + 1 : self.rsc.n_out * (k + 1)]
+      pos += self.rsc.n_out - 1
+    code_bits[pos : pos + self.rsc.n_out * self.rsc.mem_len] = ctop[self.rsc.n_out * n_info_bits :]
+    code_bits[pos + self.rsc.n_out * self.rsc.mem_len :] = cbot[self.rsc.n_out * n_info_bits :]
+
+    return code_bits
+
+
+# In[172]:
+
+
+class Turbo(Turbo):
+  
+  def decode(self, code_bit_llrs, n_turbo_iters, max_log=False):
+
+    code_bit_llrs = np.asarray(code_bit_llrs).ravel()
+    n_info_bits = int((code_bit_llrs.size - self.n_tail_bits) / self.n_out)
+
+    if n_info_bits != len(self.turbo_int):
+      self.turbo_int, self.turbo_deint = self.interleave(n_info_bits)
+
+    # Systematic bit LLRs for each decoder
+    sys_llrs_top = code_bit_llrs[0 : self.n_out * n_info_bits : self.n_out]
+    sys_llrs_bot = sys_llrs_top[self.turbo_int]
+
+    # Code bit LLRs for each decoder
+    ctop_llrs = np.zeros(self.rsc.n_out * (n_info_bits + self.rsc.mem_len))
+    cbot_llrs = np.zeros(self.rsc.n_out * (n_info_bits + self.rsc.mem_len))
+    pos = 0
+
+    for k in range(n_info_bits):
+      num = self.rsc.n_out * k
+      ctop_llrs[num] = sys_llrs_top[k]
+      cbot_llrs[num] = sys_llrs_bot[k]
+      pos += 1
+      ctop_llrs[num + 1 : num + self.rsc.n_out] = code_bit_llrs[pos : pos + self.rsc.n_out - 1]
+      pos += self.rsc.n_out - 1
+      cbot_llrs[num + 1 : num + self.rsc.n_out] = code_bit_llrs[pos : pos + self.rsc.n_out - 1]
+      pos += self.rsc.n_out - 1
       
-      itr+=1
-    
-    res[:k]=res[self.de_interleaver_sequence]
-    res=np.sign(res)
-    EST_information=(res+1)/2
+    ctop_llrs[self.rsc.n_out * n_info_bits :] = code_bit_llrs[pos : pos + self.rsc.n_out * self.rsc.mem_len]
+    cbot_llrs[self.rsc.n_out * n_info_bits :] = code_bit_llrs[pos + self.rsc.n_out * self.rsc.mem_len :]
 
-    #delete tail bits
-    EST_information=EST_information[:k]
+    #puncturing only for n_out=1
+    ctop_llrs[1::4]=0
+    cbot_llrs[3::4]=0
 
-    return EST_information
+    # Main loop for turbo iterations
+    ipre_llrs, ipost_llrs = np.zeros(n_info_bits), np.zeros(n_info_bits)
+    for _ in range(n_turbo_iters):
+      ipost_llrs[:] = self.rsc.decode_bcjr(ctop_llrs, ipre_llrs, max_log)
+      ipre_llrs[:] = (ipost_llrs[self.turbo_int]- ipre_llrs[self.turbo_int]- sys_llrs_top[self.turbo_int])
+      ipost_llrs[:] = self.rsc.decode_bcjr(cbot_llrs, ipre_llrs, max_log)
+      ipre_llrs[:] = (ipost_llrs[self.turbo_deint]- ipre_llrs[self.turbo_deint]- sys_llrs_bot[self.turbo_deint])
+
+    # Final post-decoding LLRs and hard decisions
+    post_info_bit_llrs = ipost_llrs[self.turbo_deint]
+    info_bits_hat = (post_info_bit_llrs < 0).astype(int)
+
+    return info_bits_hat, post_info_bit_llrs
 
 
-# In[33]:
+# In[173]:
 
 
-class turbo_code(encoding,decoding):
-  def __init__(self,K):
-    super().__init__(K)
+class turbo_code(Turbo):
     
   def main_func(self,EbNodB): 
-    information,codeword=self.turbo_encode()
-    Lc=ch.generate_LLR(codeword,EbNodB)
-    EST_information=self.turbo_decode(Lc,self.max_itr)      
+    information=np.random.randint(0,2,self.K)
+    codeword=tc.encode(information)
+    Lc=-1*ch.generate_LLR(codeword,EbNodB)  
+    EST_information,_=tc.decode(Lc,18) 
+
     return information,EST_information
 
 
-# In[34]:
+# In[174]:
 
 
 if __name__=="__main__":
-  tc=turbo_code(100)
-  print(tc.G)
+  tc=turbo_code(13,[11],1000)
+  
   def output(EbNodB):
 
     #prepare some constants
@@ -341,11 +377,15 @@ if __name__=="__main__":
     count_berr=0
     count_all=0
     count_err=0
-    #count_berr_mat=np.zeros(100)
+
+    #count_berr_mat=np.zeros(1000)
 
     while count_err<MAX_ERR:
     #print("\r"+str(count_err),end="")
+
+      #main calcuration
       information,EST_information=tc.main_func(EbNodB)
+      #information,EST_information=tc.main_func(EbNodB)
       
       #calculate block error rate
       if np.any(information!=EST_information):
@@ -362,7 +402,7 @@ if __name__=="__main__":
 
     return count_err,count_all,count_berr,count_ball
 
-  EbNodB_range=np.array([-2,-1,0,1,2,3,4])
+  EbNodB_range=np.array([-1])
   for i in EbNodB_range:
     print(i)
     _,_,a,b=output(i)
