@@ -66,7 +66,7 @@ class MC():
         self.RX_antenna=1
         self.MAX_ERR=8
         self.EbNodB_start=-5
-        self.EbNodB_end=1
+        self.EbNodB_end=2
         self.EbNodB_range=np.arange(self.EbNodB_start,self.EbNodB_end,1) #0.5dBごとに測定
 
     #特定のNに関する出力
@@ -173,7 +173,7 @@ class savetxt(turbo_code,_AWGN,MC):
 if __name__=="__main__":
     mc=MC()
 
-    N_list=[]
+    N_list=[500,1000,2000,4000,8000]
     result_ids_array=[]
     print(mc.EbNodB_range)
     for i,N in enumerate(N_list):
