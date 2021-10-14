@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[162]:
+# In[1]:
 
 
 # -*- coding: utf-8 -*-
@@ -239,12 +239,20 @@ class Conv(Conv):
 
 class Turbo(object):
 
-  def __init__(self, back_poly, parity_polys,K):
+  def __init__(self,K):
+    super().__init__()
     #information length
     self.K=K
 
+    #to write txt file
+    self.R=str(1)+"|"+str(2)# use later
+    self.filename="turbo_code_{}_{}".format(self.K,self.R)
+
+    self.back_poly=13
+    self.parity_polys=[11]
+
     # Encoder and decoder for constituent RSC code
-    self.rsc = Conv(back_poly, [back_poly] + parity_polys)
+    self.rsc = Conv(self.back_poly, [self.back_poly] + self.parity_polys)
 
     # Number of output bits per input bit and number of tail bits
     # per input block for the turbo code
@@ -353,12 +361,15 @@ class Turbo(Turbo):
 
 
 class turbo_code(Turbo):
+
+  def __init__(self,K):
+    super().__init__(K)
     
   def main_func(self,EbNodB): 
     information=np.random.randint(0,2,self.K)
-    codeword=tc.encode(information)
+    codeword=self.encode(information)
     Lc=-1*ch.generate_LLR(codeword,EbNodB)  
-    EST_information,_=tc.decode(Lc,18) 
+    EST_information,_=self.decode(Lc,18) 
 
     return information,EST_information
 
@@ -367,7 +378,7 @@ class turbo_code(Turbo):
 
 
 if __name__=="__main__":
-  tc=turbo_code(13,[11],1000)
+  tc=turbo_code(1000)
   
   def output(EbNodB):
 
