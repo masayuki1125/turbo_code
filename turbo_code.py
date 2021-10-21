@@ -17,7 +17,7 @@ from AWGN import _AWGN
 ch=_AWGN()
 
 
-# In[163]:
+# In[2]:
 
 
 class Conv(object):
@@ -46,7 +46,7 @@ class Conv(object):
     return
 
 
-# In[164]:
+# In[3]:
 
 
 class Conv(Conv):
@@ -74,7 +74,7 @@ class Conv(Conv):
     return max(eggs, spam) + (0 if max_log else math.log(1 + math.exp(-abs(spam - eggs))))
 
 
-# In[165]:
+# In[4]:
 
 
 class Conv(Conv):
@@ -84,8 +84,7 @@ class Conv(Conv):
     info_bits = np.asarray(info_bits).ravel()
     n_info_bits = info_bits.size
 
-    code_bits, enc_state = -np.ones(
-    self.n_out * (n_info_bits + self.mem_len), dtype=int), 0
+    code_bits, enc_state = -np.ones(self.n_out * (n_info_bits + self.mem_len), dtype=int), 0
     
     for k in range(n_info_bits + self.mem_len):
       in_bit = (info_bits[k] if k < n_info_bits else self.next_state_msb[0][enc_state])
@@ -95,7 +94,7 @@ class Conv(Conv):
     return code_bits
 
 
-# In[166]:
+# In[5]:
 
 
 class Conv(Conv):
@@ -123,7 +122,7 @@ class Conv(Conv):
     return
 
 
-# In[167]:
+# In[6]:
 
 
 class Conv(Conv):
@@ -165,7 +164,7 @@ class Conv(Conv):
     return
 
 
-# In[168]:
+# In[7]:
 
 
 class Conv(Conv):
@@ -193,7 +192,7 @@ class Conv(Conv):
     return met0 - met1
 
 
-# In[169]:
+# In[8]:
 
 
 class Conv(Conv):
@@ -234,22 +233,20 @@ class Conv(Conv):
     return post_info_bit_llrs
 
 
-# In[170]:
+# In[9]:
 
 
-class Turbo(object):
+class Turbo():
 
   def __init__(self,K):
-    super().__init__()
     #information length
     self.K=K
+    self.back_poly=13
+    self.parity_polys=[11]
 
     #to write txt file
     self.R=str(1)+"|"+str(2)# use later
     self.filename="turbo_code_{}_{}".format(self.K,self.R)
-
-    self.back_poly=13
-    self.parity_polys=[11]
 
     # Encoder and decoder for constituent RSC code
     self.rsc = Conv(self.back_poly, [self.back_poly] + self.parity_polys)
@@ -264,15 +261,81 @@ class Turbo(object):
 
     return
 
-  @staticmethod
-  def interleave(n_info_bits):
-    turbo_int=np.arange(n_info_bits)
-    np.random.shuffle(turbo_int)
+  def interleave(self,n_info_bits):
+    turbo_int=self.make_interleaver_sequence(n_info_bits)
     turbo_deint=np.argsort(turbo_int)
     return turbo_int,turbo_deint
 
 
-# In[171]:
+# In[10]:
+
+
+class Turbo(Turbo):
+
+  @staticmethod
+  def make_interleaver_sequence(n_info_bits):
+    mod=2 #2:odd-even interleaver
+    s=math.floor(15*math.sqrt(n_info_bits)/16)
+    print(s)
+    #step 1 generate random sequence
+    vector=np.arange(n_info_bits)
+    np.random.shuffle(vector)
+
+    itr=True
+    count=0
+    while itr:
+      #intialize for each iteration
+      heap=np.zeros(n_info_bits)
+      position=np.arange(n_info_bits)
+
+      #step2 set first vector to heap
+      heap[0]=vector[0]
+      position=np.delete(position,0)
+
+      #step3 bubble sort 
+      #set to ith heap
+      for i in range(1,n_info_bits):
+        #serch jth valid position
+        for pos,j in enumerate(position):
+          # confirm valid or not
+          for k in range(1,s+1):
+            if i-k>=0 and (abs(heap[i-k]-vector[j])+abs(i-k-j))<=s or (vector[j]%mod)!=(i%mod):
+              '''
+              i-k>=0 : for the part i<s 
+              (abs(heap[i-k]-vector[j]))<=s : srandom interleaver
+              vector[j]//mod!=i//mod : mod M interleaver(such as odd-even)
+              '''
+              #vector[j] is invalid and next vector[j+1]
+              break
+
+          #vector[j] is valid and set to heap[i]
+          else:
+            heap[i]=vector[j]
+            position=np.delete(position,pos)
+            break
+
+        #if dont exit num at heap[i]
+        else:
+          #set invalid sequence to the top and next iteration
+          tmp=vector[position]
+          np.random.shuffle(tmp)
+          vector[0:n_info_bits-i]=tmp
+          vector[n_info_bits-i:n_info_bits]=heap[0:i]
+          break
+
+      #if all the heap num is valid, end iteration
+      else:
+          itr=False
+      
+      #print(heap)
+      #print(vector)
+      #print("\r","itr",count,end="")
+      count+=1
+      
+    return heap
+
+
+# In[11]:
 
 
 class Turbo(Turbo):
@@ -303,7 +366,7 @@ class Turbo(Turbo):
     return code_bits
 
 
-# In[172]:
+# In[12]:
 
 
 class Turbo(Turbo):
@@ -357,7 +420,7 @@ class Turbo(Turbo):
     return info_bits_hat, post_info_bit_llrs
 
 
-# In[173]:
+# In[13]:
 
 
 class turbo_code(Turbo):
@@ -374,7 +437,7 @@ class turbo_code(Turbo):
     return information,EST_information
 
 
-# In[174]:
+# In[14]:
 
 
 if __name__=="__main__":
