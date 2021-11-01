@@ -66,9 +66,11 @@ class MC():
         self.RX_antenna=1
         self.MAX_ERR=8
         self.EbNodB_start=-5
-        self.EbNodB_end=2
-        self.EbNodB_range=np.arange(self.EbNodB_start,self.EbNodB_end,1) #0.5dBごとに測定
+        self.EbNodB_end=1
+        self.EbNodB_range=np.arange(self.EbNodB_start,self.EbNodB_end,0.5) #0.5dBごとに測定
         self.max_itr=18
+
+        
 
     #特定のNに関する出力
     def monte_carlo_get_ids(self,dumped):

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[466]:
 
 
 # -*- coding: utf-8 -*-
@@ -17,10 +17,10 @@ from AWGN import _AWGN
 ch=_AWGN()
 
 
-# In[2]:
+# In[467]:
 
 
-class Conv(object):
+class conv_code():
   INF = 1e6
 
   def __init__(self, back_poly, fwd_polys):
@@ -45,12 +45,6 @@ class Conv(object):
 
     return
 
-
-# In[3]:
-
-
-class Conv(Conv):
-
   @staticmethod
   def bitxor(num):
     '''
@@ -66,18 +60,12 @@ class Conv(Conv):
     return count_of_ones % 2
 
   @staticmethod
-  def maxstar(eggs, spam, max_log=False):
+  def maxstar(eggs, spam, max_log=True):
     '''
     Returns log(exp(eggs) + exp(spam)) if not max_log, and max(eggs, spam)
     otherwise.
     '''
     return max(eggs, spam) + (0 if max_log else math.log(1 + math.exp(-abs(spam - eggs))))
-
-
-# In[4]:
-
-
-class Conv(Conv):
 
   def encode(self, info_bits):
 
@@ -92,12 +80,6 @@ class Conv(Conv):
       enc_state = self.next_state[in_bit][enc_state]
 
     return code_bits
-
-
-# In[5]:
-
-
-class Conv(Conv):
 
   def _branch_metrics(self, out_bit_llrs, pre_in_bit_llr=0):
 
@@ -121,11 +103,6 @@ class Conv(Conv):
 
     return
 
-
-# In[6]:
-
-
-class Conv(Conv):
   def decode_viterbi(self, code_bit_llrs):
 
     code_bit_llrs = np.asarray(code_bit_llrs).ravel()
@@ -133,7 +110,7 @@ class Conv(Conv):
     n_info_bits = n_in_bits - self.mem_len
 
     # Path metric for each state at time n_in_bits.
-    path_metrics = [(0 if s == 0 else -Conv.INF) for s in self.state_space]
+    path_metrics = [(0 if s == 0 else -conv_code.INF) for s in self.state_space]
 
     # Best input bit in each state at times 0 to n_in_bits - 1.
     best_bit = [[-1 for s in self.state_space] for k in range(n_in_bits)]
@@ -163,12 +140,6 @@ class Conv(Conv):
 
     return
 
-
-# In[7]:
-
-
-class Conv(Conv):
-
   def _update_beta_tail(self, out_bit_llrs, beta_val, max_log):
 
     gamma_val = self._branch_metrics(out_bit_llrs, 0)
@@ -182,8 +153,8 @@ class Conv(Conv):
 
     gamma_val = self._branch_metrics(out_bit_llrs, pre_in_bit_llr)
 
-    met0 = -Conv.INF
-    met1 = -Conv.INF
+    met0 = -conv_code.INF
+    met1 = -conv_code.INF
     bvn = beta_val[:]
     for enc_state in self.state_space:
       beta_val[enc_state] = self.maxstar(gamma_val[0][enc_state] + bvn[self.next_state[0][enc_state]],gamma_val[1][enc_state] + bvn[self.next_state[1][enc_state]],max_log)
@@ -191,12 +162,7 @@ class Conv(Conv):
       met1 = self.maxstar(alpha_val[enc_state] + gamma_val[1][enc_state]+ bvn[self.next_state[1][enc_state]],met1,max_log)
     return met0 - met1
 
-
-# In[8]:
-
-
-class Conv(Conv):
-  def decode_bcjr(self,code_bit_llrs,pre_info_bit_llrs=None,max_log=False):
+  def decode_bcjr(self,code_bit_llrs,pre_info_bit_llrs=None,max_log=True):
 
     code_bit_llrs = np.asarray(code_bit_llrs).ravel()
     n_in_bits = int(code_bit_llrs.size / self.n_out)
@@ -209,14 +175,14 @@ class Conv(Conv):
 
     # FORWARD PASS: Recursively compute alpha values for all states at
     # all times from 1 to n_info_bits - 1, working forward from time 0.
-    alpha = [[(0 if s == 0 and k == 0 else -Conv.INF)for s in self.state_space] for k in range(n_info_bits)]
+    alpha = [[(0 if s == 0 and k == 0 else -conv_code.INF)for s in self.state_space] for k in range(n_info_bits)]
     for k in range(n_info_bits - 1):
       out_bit_llrs = code_bit_llrs[self.n_out * k : self.n_out * (k + 1)]
       self._update_alpha(out_bit_llrs, pre_info_bit_llrs[k],alpha[k], alpha[k + 1], max_log)
 
     # BACKWARD PASS (TAIL): Recursively compute beta values for all
     # states at time n_info_bits, working backward from time n_in_bits.
-    beta = [(0 if s == 0 else -Conv.INF) for s in self.state_space]
+    beta = [(0 if s == 0 else -conv_code.INF) for s in self.state_space]
     for k in range(n_in_bits - 1, n_info_bits - 1, -1):
       out_bit_llrs = code_bit_llrs[self.n_out * k : self.n_out * (k + 1)]
       self._update_beta_tail(out_bit_llrs, beta, max_log)
@@ -233,60 +199,58 @@ class Conv(Conv):
     return post_info_bit_llrs
 
 
-# In[9]:
+# In[474]:
 
 
-class Turbo():
+class coding():
 
   def __init__(self,K):
     #information length
+    super().__init__()
     self.K=K
     self.back_poly=13
     self.parity_polys=[11]
+    self.itr_num=18
 
     #to write txt file
     self.R=str(1)+"|"+str(2)# use later
     self.filename="turbo_code_{}_{}".format(self.K,self.R)
 
     # Encoder and decoder for constituent RSC code
-    self.rsc = Conv(self.back_poly, [self.back_poly] + self.parity_polys)
+    self.rsc = conv_code(self.back_poly, [self.back_poly] + self.parity_polys)
 
     # Number of output bits per input bit and number of tail bits
     # per input block for the turbo code
+
     self.n_out = self.rsc.n_out + (self.rsc.n_out - 1)
+
     self.n_tail_bits = self.rsc.n_out * self.rsc.mem_len * 2
 
     # Turbo interleaver and deinterleaver
-    self.turbo_int, self.turbo_deint = [], []
+    self.turbo_int, self.turbo_deint =  self.interleave()
 
     return
 
-  def interleave(self,n_info_bits):
-    turbo_int=self.make_interleaver_sequence(n_info_bits)
+  def interleave(self):
+    #make s-random odd-even interleaver sequence
+    turbo_int=self.make_interleaver_sequence()
     turbo_deint=np.argsort(turbo_int)
     return turbo_int,turbo_deint
 
-
-# In[10]:
-
-
-class Turbo(Turbo):
-
-  @staticmethod
-  def make_interleaver_sequence(n_info_bits):
+  def make_interleaver_sequence(self):
     mod=2 #2:odd-even interleaver
-    s=math.floor(15*math.sqrt(n_info_bits)/16)
+    s=math.floor(math.sqrt(self.K))-15
     print(s)
     #step 1 generate random sequence
-    vector=np.arange(n_info_bits)
+    vector=np.arange(self.K,dtype='int')
     np.random.shuffle(vector)
 
     itr=True
     count=0
     while itr:
       #intialize for each iteration
-      heap=np.zeros(n_info_bits)
-      position=np.arange(n_info_bits)
+      heap=np.zeros(self.K,dtype='int')
+      position=np.arange(self.K,dtype='int')
 
       #step2 set first vector to heap
       heap[0]=vector[0]
@@ -294,7 +258,7 @@ class Turbo(Turbo):
 
       #step3 bubble sort 
       #set to ith heap
-      for i in range(1,n_info_bits):
+      for i in range(1,self.K):
         #serch jth valid position
         for pos,j in enumerate(position):
           # confirm valid or not
@@ -319,8 +283,8 @@ class Turbo(Turbo):
           #set invalid sequence to the top and next iteration
           tmp=vector[position]
           np.random.shuffle(tmp)
-          vector[0:n_info_bits-i]=tmp
-          vector[n_info_bits-i:n_info_bits]=heap[0:i]
+          vector[0:self.K-i]=tmp
+          vector[self.K-i:self.K]=heap[0:i]
           break
 
       #if all the heap num is valid, end iteration
@@ -329,115 +293,120 @@ class Turbo(Turbo):
       
       #print(heap)
       #print(vector)
-      #print("\r","itr",count,end="")
+      print("\r","itr",count,end="")
       count+=1
       
     return heap
 
 
-# In[11]:
+# In[476]:
 
+class encoding(coding):
 
-class Turbo(Turbo):
+  def __init__(self,K):
+    super().__init__(K)
 
-  def encode(self, info_bits):
+  def generate_information(self):
+    information=np.random.randint(0,2,self.K)
+    return information
 
-    info_bits = np.asarray(info_bits).ravel()
-    n_info_bits = info_bits.size
-
-    if n_info_bits != len(self.turbo_int):
-      self.turbo_int, self.turbo_deint = self.interleave(n_info_bits)
+  def encoding(self, information):
 
     # Get code bits from each encoder.
-    ctop = self.rsc.encode(info_bits)
-    cbot = self.rsc.encode(info_bits[self.turbo_int])
+    ctop = self.rsc.encode(information)
+    cbot = self.rsc.encode(information[self.turbo_int])
 
     # Assemble code bits from both encoders.
-    code_bits, pos = -np.ones(self.n_out * n_info_bits + self.n_tail_bits, dtype=int), 0
+    codeword, pos = -np.ones(self.n_out * self.K + self.n_tail_bits, dtype=int), 0
 
-    for k in range(n_info_bits):
-      code_bits[pos : pos + self.rsc.n_out] = ctop[self.rsc.n_out * k : self.rsc.n_out * (k + 1)]
+    for k in range(self.K):
+      codeword[pos : pos + self.rsc.n_out] = ctop[self.rsc.n_out * k : self.rsc.n_out * (k + 1)]
       pos += self.rsc.n_out
-      code_bits[pos : pos + self.rsc.n_out - 1] = cbot[self.rsc.n_out * k + 1 : self.rsc.n_out * (k + 1)]
+      codeword[pos : pos + self.rsc.n_out - 1] = cbot[self.rsc.n_out * k + 1 : self.rsc.n_out * (k + 1)]
       pos += self.rsc.n_out - 1
-    code_bits[pos : pos + self.rsc.n_out * self.rsc.mem_len] = ctop[self.rsc.n_out * n_info_bits :]
-    code_bits[pos + self.rsc.n_out * self.rsc.mem_len :] = cbot[self.rsc.n_out * n_info_bits :]
+    codeword[pos : pos + self.rsc.n_out * self.rsc.mem_len] = ctop[self.rsc.n_out * self.K :]
+    codeword[pos + self.rsc.n_out * self.rsc.mem_len :] = cbot[self.rsc.n_out * self.K :]
 
-    return code_bits
+    return codeword
+
+  def turbo_encode(self):
+    information=self.generate_information()
+    codeword=self.encoding(information)
+    return information,codeword
 
 
-# In[12]:
+# In[478]:
 
+class decoding(coding):
 
-class Turbo(Turbo):
+  def __init__(self,K):
+    super().__init__(K)
   
-  def decode(self, code_bit_llrs, n_turbo_iters, max_log=False):
-
-    code_bit_llrs = np.asarray(code_bit_llrs).ravel()
-    n_info_bits = int((code_bit_llrs.size - self.n_tail_bits) / self.n_out)
-
-    if n_info_bits != len(self.turbo_int):
-      self.turbo_int, self.turbo_deint = self.interleave(n_info_bits)
+  def decoding(self, Lc):
 
     # Systematic bit LLRs for each decoder
-    sys_llrs_top = code_bit_llrs[0 : self.n_out * n_info_bits : self.n_out]
-    sys_llrs_bot = sys_llrs_top[self.turbo_int]
+    lambda_s = Lc[0 : self.n_out * self.K : self.n_out]
+    in_lambda_s = lambda_s[self.turbo_int]
 
     # Code bit LLRs for each decoder
-    ctop_llrs = np.zeros(self.rsc.n_out * (n_info_bits + self.rsc.mem_len))
-    cbot_llrs = np.zeros(self.rsc.n_out * (n_info_bits + self.rsc.mem_len))
+    ctop_llrs = np.zeros(self.rsc.n_out * (self.K + self.rsc.mem_len))
+    cbot_llrs = np.zeros(self.rsc.n_out * (self.K + self.rsc.mem_len))
     pos = 0
 
-    for k in range(n_info_bits):
+    for k in range(self.K):
       num = self.rsc.n_out * k
-      ctop_llrs[num] = sys_llrs_top[k]
-      cbot_llrs[num] = sys_llrs_bot[k]
+      ctop_llrs[num] = lambda_s[k]
+      cbot_llrs[num] = in_lambda_s[k]
       pos += 1
-      ctop_llrs[num + 1 : num + self.rsc.n_out] = code_bit_llrs[pos : pos + self.rsc.n_out - 1]
+      ctop_llrs[num + 1 : num + self.rsc.n_out] = Lc[pos : pos + self.rsc.n_out - 1]
       pos += self.rsc.n_out - 1
-      cbot_llrs[num + 1 : num + self.rsc.n_out] = code_bit_llrs[pos : pos + self.rsc.n_out - 1]
+      cbot_llrs[num + 1 : num + self.rsc.n_out] = Lc[pos : pos + self.rsc.n_out - 1]
       pos += self.rsc.n_out - 1
       
-    ctop_llrs[self.rsc.n_out * n_info_bits :] = code_bit_llrs[pos : pos + self.rsc.n_out * self.rsc.mem_len]
-    cbot_llrs[self.rsc.n_out * n_info_bits :] = code_bit_llrs[pos + self.rsc.n_out * self.rsc.mem_len :]
+    ctop_llrs[self.rsc.n_out * self.K :] = Lc[pos : pos + self.rsc.n_out * self.rsc.mem_len]
+    cbot_llrs[self.rsc.n_out * self.K :] = Lc[pos + self.rsc.n_out * self.rsc.mem_len :]
 
     #puncturing only for n_out=1
     ctop_llrs[1::4]=0
     cbot_llrs[3::4]=0
 
     # Main loop for turbo iterations
-    ipre_llrs, ipost_llrs = np.zeros(n_info_bits), np.zeros(n_info_bits)
-    for _ in range(n_turbo_iters):
-      ipost_llrs[:] = self.rsc.decode_bcjr(ctop_llrs, ipre_llrs, max_log)
-      ipre_llrs[:] = (ipost_llrs[self.turbo_int]- ipre_llrs[self.turbo_int]- sys_llrs_top[self.turbo_int])
-      ipost_llrs[:] = self.rsc.decode_bcjr(cbot_llrs, ipre_llrs, max_log)
-      ipre_llrs[:] = (ipost_llrs[self.turbo_deint]- ipre_llrs[self.turbo_deint]- sys_llrs_bot[self.turbo_deint])
+    lambda_e, in_lambda_e = np.zeros(self.K), np.zeros(self.K)
+    for _ in range(self.itr_num):
+      res = self.rsc.decode_bcjr(ctop_llrs, in_lambda_e[self.turbo_deint])
+      lambda_e = res- in_lambda_e[self.turbo_deint] - lambda_s
+      in_res = self.rsc.decode_bcjr(cbot_llrs, lambda_e[self.turbo_int])
+      in_lambda_e = in_res - lambda_e[self.turbo_int] - in_lambda_s
 
     # Final post-decoding LLRs and hard decisions
-    post_info_bit_llrs = ipost_llrs[self.turbo_deint]
-    info_bits_hat = (post_info_bit_llrs < 0).astype(int)
+    res = in_res[self.turbo_deint]
 
-    return info_bits_hat, post_info_bit_llrs
+    EST_infromation = (res < 0).astype(int)
+
+    return EST_infromation
+
+  def turbo_decode(self,Lc):
+    EST_information=self.decoding(Lc)
+    return EST_information
 
 
-# In[13]:
+# In[480]:
 
 
-class turbo_code(Turbo):
+class turbo_code(encoding,decoding):
 
   def __init__(self,K):
     super().__init__(K)
     
   def main_func(self,EbNodB): 
-    information=np.random.randint(0,2,self.K)
-    codeword=self.encode(information)
-    Lc=-1*ch.generate_LLR(codeword,EbNodB)  
-    EST_information,_=self.decode(Lc,18) 
+    information,codeword=self.turbo_encode()
+    Lc=-1*ch.generate_LLR(codeword,EbNodB)  ###LLR reverse
+    EST_information=self.turbo_decode(Lc) 
 
     return information,EST_information
 
 
-# In[14]:
+# In[481]:
 
 
 if __name__=="__main__":
