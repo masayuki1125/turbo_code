@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[466]:
+# In[104]:
 
 
 # -*- coding: utf-8 -*-
@@ -17,7 +17,7 @@ from AWGN import _AWGN
 ch=_AWGN()
 
 
-# In[467]:
+# In[105]:
 
 
 class conv_code():
@@ -45,6 +45,12 @@ class conv_code():
 
     return
 
+
+# In[106]:
+
+
+class conv_code(conv_code):
+
   @staticmethod
   def bitxor(num):
     '''
@@ -67,6 +73,12 @@ class conv_code():
     '''
     return max(eggs, spam) + (0 if max_log else math.log(1 + math.exp(-abs(spam - eggs))))
 
+
+# In[107]:
+
+
+class conv_code(conv_code):
+
   def encode(self, info_bits):
 
     info_bits = np.asarray(info_bits).ravel()
@@ -80,6 +92,12 @@ class conv_code():
       enc_state = self.next_state[in_bit][enc_state]
 
     return code_bits
+
+
+# In[108]:
+
+
+class conv_code(conv_code):
 
   def _branch_metrics(self, out_bit_llrs, pre_in_bit_llr=0):
 
@@ -103,6 +121,11 @@ class conv_code():
 
     return
 
+
+# In[109]:
+
+
+class conv_code(conv_code):
   def decode_viterbi(self, code_bit_llrs):
 
     code_bit_llrs = np.asarray(code_bit_llrs).ravel()
@@ -140,6 +163,12 @@ class conv_code():
 
     return
 
+
+# In[110]:
+
+
+class conv_code(conv_code):
+
   def _update_beta_tail(self, out_bit_llrs, beta_val, max_log):
 
     gamma_val = self._branch_metrics(out_bit_llrs, 0)
@@ -162,6 +191,11 @@ class conv_code():
       met1 = self.maxstar(alpha_val[enc_state] + gamma_val[1][enc_state]+ bvn[self.next_state[1][enc_state]],met1,max_log)
     return met0 - met1
 
+
+# In[111]:
+
+
+class conv_code(conv_code):
   def decode_bcjr(self,code_bit_llrs,pre_info_bit_llrs=None,max_log=True):
 
     code_bit_llrs = np.asarray(code_bit_llrs).ravel()
@@ -199,22 +233,39 @@ class conv_code():
     return post_info_bit_llrs
 
 
-# In[474]:
+# In[112]:
 
 
 class coding():
 
   def __init__(self,K):
     #information length
-    super().__init__()
+    
+    self.output_all_iterations=True #:default:false 
     self.K=K
+    #self.N=1024##may use(under construnction)
+    self.R=1/2#self.K/self.N
+    self.N=int(self.K/self.R)
+    print("R")
+    print(self.R)
     self.back_poly=13
     self.parity_polys=[11]
-    self.itr_num=18
+    self.max_itr=18
+    
+    if self.R<1/2:
+      self.mod=2
+    else:
+      self.mod=math.floor(2/(1/self.R-1))
+    
+    #punctur index
+    if self.R!=1/3:
+      self.ind_top,self.ind_bot=self.make_puncture_indeces(self.N,self.K,self.R)
+    
+    #print(self.ind_top)
+    #print(self.ind_bot)
 
     #to write txt file
-    self.R=str(1)+"|"+str(2)# use later
-    self.filename="turbo_code_{}_{}".format(self.K,self.R)
+    self.filename="turbo_code_{}_{}".format(self.K,math.floor(self.R*100)/100) #rateは少数第二桁まで表示
 
     # Encoder and decoder for constituent RSC code
     self.rsc = conv_code(self.back_poly, [self.back_poly] + self.parity_polys)
@@ -237,9 +288,69 @@ class coding():
     turbo_deint=np.argsort(turbo_int)
     return turbo_int,turbo_deint
 
+
+# In[113]:
+
+
+class coding(coding):
+
+  def make_puncture_indeces(self,N,K,R):
+    
+    parity_num=N-K #parityビットの数
+    
+    if R>=1/2:
+
+      #パリティビットの個数分のインデックスを作成
+      ind_top=np.random.choice(K//self.mod,size=math.floor(parity_num/2),replace=False)
+      ind_bot=np.random.choice(K//self.mod,size=math.ceil(parity_num/2),replace=False)
+
+      #paritybitのあるインデックスの配列
+      ind_top=self.mod*ind_top
+      ind_bot=self.mod*ind_bot+1
+      
+      res_top = np.ones(K, dtype=bool)
+      res_top[ind_top]=False
+      res_bot = np.ones(K, dtype=bool)
+      res_bot[ind_bot]=False 
+      
+    else: #if 1/3<rate<1/2
+
+      parity_num=parity_num-K 
+      if parity_num<0:
+        print("error")
+              
+      res_top = np.ones(K, dtype=bool)
+      res_top[0::2]=False
+      res_bot = np.ones(K, dtype=bool)
+      res_bot[1::2]=False
+      
+      ind_top_rem=np.random.choice(K//self.mod,size=math.floor(parity_num/2),replace=False)
+      ind_bot_rem=np.random.choice(K//self.mod,size=math.ceil(parity_num/2),replace=False)
+
+      #paritybitのあるインデックスの配列
+      ind_top_rem=self.mod*ind_top_rem+1
+      ind_bot_rem=self.mod*ind_bot_rem
+      
+      #print(ind_top_rem)
+      #print(ind_bot_rem)
+      
+      res_top[ind_top_rem]=False
+      res_bot[ind_bot_rem]=False
+    
+    
+    if (len(res_top[res_top==False])+len(res_bot[res_bot==False]))!=(N-K):
+      print("puncture error")
+          
+    return res_top,res_bot
+
+
+# In[114]:
+
+
+class coding(coding):
+
   def make_interleaver_sequence(self):
-    mod=2 #2:odd-even interleaver
-    s=math.floor(math.sqrt(self.K))-15
+    s=math.floor(math.sqrt(self.K))-5
     print(s)
     #step 1 generate random sequence
     vector=np.arange(self.K,dtype='int')
@@ -263,7 +374,7 @@ class coding():
         for pos,j in enumerate(position):
           # confirm valid or not
           for k in range(1,s+1):
-            if i-k>=0 and (abs(heap[i-k]-vector[j])+abs(i-k-j))<=s or (vector[j]%mod)!=(i%mod):
+            if i-k>=0 and (abs(heap[i-k]-vector[j])+abs(i-k-j))<=s or (vector[j]%self.mod)!=(i%self.mod):
               '''
               i-k>=0 : for the part i<s 
               (abs(heap[i-k]-vector[j]))<=s : srandom interleaver
@@ -299,7 +410,8 @@ class coding():
     return heap
 
 
-# In[476]:
+# In[115]:
+
 
 class encoding(coding):
 
@@ -329,13 +441,19 @@ class encoding(coding):
 
     return codeword
 
+
+# In[116]:
+
+
+class coding(coding):
   def turbo_encode(self):
     information=self.generate_information()
     codeword=self.encoding(information)
     return information,codeword
 
 
-# In[478]:
+# In[117]:
+
 
 class decoding(coding):
 
@@ -366,31 +484,55 @@ class decoding(coding):
     ctop_llrs[self.rsc.n_out * self.K :] = Lc[pos : pos + self.rsc.n_out * self.rsc.mem_len]
     cbot_llrs[self.rsc.n_out * self.K :] = Lc[pos + self.rsc.n_out * self.rsc.mem_len :]
 
-    #puncturing only for n_out=1
-    ctop_llrs[1::4]=0
-    cbot_llrs[3::4]=0
+    #puncturing 
+    if self.R!=1/3:
+      #pick up parity
+      ptop_llrs=ctop_llrs[1:2*self.K:2]
+      pbot_llrs=cbot_llrs[1:2*self.K:2]
+  
+      #insert 0
+      ptop_llrs[self.ind_top]==0
+      pbot_llrs[self.ind_bot]==0
+      
+      #make codeword
+      ctop_llrs[1:2*self.K:2]=ptop_llrs
+      cbot_llrs[1:2*self.K:2]=pbot_llrs
+    
 
     # Main loop for turbo iterations
+    if self.output_all_iterations:#output 2D EST_information
+      EST_infromation=np.zeros((self.K,self.max_itr))
+    
+    
     lambda_e, in_lambda_e = np.zeros(self.K), np.zeros(self.K)
-    for _ in range(self.itr_num):
+    for i in range(self.max_itr):
       res = self.rsc.decode_bcjr(ctop_llrs, in_lambda_e[self.turbo_deint])
       lambda_e = res- in_lambda_e[self.turbo_deint] - lambda_s
       in_res = self.rsc.decode_bcjr(cbot_llrs, lambda_e[self.turbo_int])
       in_lambda_e = in_res - lambda_e[self.turbo_int] - in_lambda_s
+      
+      if self.output_all_iterations:#output 2D EST_information
+        res = in_res[self.turbo_deint]
+        EST_infromation[:,i] = (res < 0).astype(int)
 
     # Final post-decoding LLRs and hard decisions
-    res = in_res[self.turbo_deint]
-
-    EST_infromation = (res < 0).astype(int)
+    if self.output_all_iterations==False:
+      res = in_res[self.turbo_deint]
+      EST_infromation = (res < 0).astype(int)
 
     return EST_infromation
 
+
+# In[118]:
+
+
+class decoding(decoding):
   def turbo_decode(self,Lc):
     EST_information=self.decoding(Lc)
     return EST_information
 
 
-# In[480]:
+# In[119]:
 
 
 class turbo_code(encoding,decoding):
@@ -405,13 +547,11 @@ class turbo_code(encoding,decoding):
 
     return information,EST_information
 
-
-# In[481]:
-
+# In[120]:
 
 if __name__=="__main__":
-  tc=turbo_code(1000)
-  
+  tc=turbo_code(500)
+  print(tc.turbo_int)
   def output(EbNodB):
 
     #prepare some constants
@@ -428,6 +568,8 @@ if __name__=="__main__":
 
       #main calcuration
       information,EST_information=tc.main_func(EbNodB)
+      print(EST_information.shape)
+      EST_information=EST_information[:,EST_information.shape[1]-1]
       #information,EST_information=tc.main_func(EbNodB)
       
       #calculate block error rate
@@ -450,4 +592,5 @@ if __name__=="__main__":
     print(i)
     _,_,a,b=output(i)
     print(a/b)
+    
 
