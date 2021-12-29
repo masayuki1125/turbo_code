@@ -81,13 +81,14 @@ class conv_code(conv_code):
 
   def encode(self, info_bits):
 
-    info_bits = np.asarray(info_bits).ravel()
+    #info_bits = np.asarray(info_bits).ravel()
     n_info_bits = info_bits.size
 
     code_bits, enc_state = -np.ones(self.n_out * (n_info_bits + self.mem_len), dtype=int), 0
     
     for k in range(n_info_bits + self.mem_len):
       in_bit = (info_bits[k] if k < n_info_bits else self.next_state_msb[0][enc_state])
+      #print((self.out_bits[in_bit][enc_state]))
       code_bits[self.n_out * k : self.n_out * (k + 1)] = (self.out_bits[in_bit][enc_state])
       enc_state = self.next_state[in_bit][enc_state]
 
@@ -241,7 +242,7 @@ class coding():
   def __init__(self,K):
     #information length
     
-    self.output_all_iterations=True #:default:false 
+    self.output_all_iterations=False #:default:false 
     self.K=K
     #self.N=1024##may use(under construnction)
     self.R=1/2#self.K/self.N
@@ -350,7 +351,7 @@ class coding(coding):
 class coding(coding):
 
   def make_interleaver_sequence(self):
-    s=math.floor(math.sqrt(self.K))-5
+    s=math.floor(math.sqrt(self.K))-10
     print(s)
     #step 1 generate random sequence
     vector=np.arange(self.K,dtype='int')
@@ -423,11 +424,30 @@ class encoding(coding):
     return information
 
   def encoding(self, information):
-
+    self.rsc = conv_code(self.back_poly, [self.back_poly] + self.parity_polys)
+    #print("info is")
+    #print(len(information))
     # Get code bits from each encoder.
     ctop = self.rsc.encode(information)
     cbot = self.rsc.encode(information[self.turbo_int])
-
+    #print("cwd is")
+    #print(len(ctop))
+    #print(len(cbot))
+    
+    #puncturing 
+    #if self.R!=1/3:
+      #pick up parity
+      #ptop=ctop[1:2*self.K:2]
+      #pbot=cbot[1:2*self.K:2]
+  
+      #insert 0
+      #ptop[self.ind_top]=0
+      #pbot[self.ind_bot]=0
+      
+      #make codeword
+      #ctop[1:2*self.K:2]=ptop
+      #cbot[1:2*self.K:2]=pbot
+    
     # Assemble code bits from both encoders.
     codeword, pos = -np.ones(self.n_out * self.K + self.n_tail_bits, dtype=int), 0
 
@@ -436,6 +456,7 @@ class encoding(coding):
       pos += self.rsc.n_out
       codeword[pos : pos + self.rsc.n_out - 1] = cbot[self.rsc.n_out * k + 1 : self.rsc.n_out * (k + 1)]
       pos += self.rsc.n_out - 1
+      
     codeword[pos : pos + self.rsc.n_out * self.rsc.mem_len] = ctop[self.rsc.n_out * self.K :]
     codeword[pos + self.rsc.n_out * self.rsc.mem_len :] = cbot[self.rsc.n_out * self.K :]
 
@@ -445,10 +466,11 @@ class encoding(coding):
 # In[116]:
 
 
-class coding(coding):
+class encoding(encoding):
   def turbo_encode(self):
     information=self.generate_information()
     codeword=self.encoding(information)
+    
     return information,codeword
 
 
@@ -491,8 +513,8 @@ class decoding(coding):
       pbot_llrs=cbot_llrs[1:2*self.K:2]
   
       #insert 0
-      ptop_llrs[self.ind_top]==0
-      pbot_llrs[self.ind_bot]==0
+      ptop_llrs[self.ind_top]=0
+      pbot_llrs[self.ind_bot]=0
       
       #make codeword
       ctop_llrs[1:2*self.K:2]=ptop_llrs
@@ -501,7 +523,7 @@ class decoding(coding):
 
     # Main loop for turbo iterations
     if self.output_all_iterations:#output 2D EST_information
-      EST_infromation=np.zeros((self.K,self.max_itr))
+      EST_information=np.zeros((self.K,self.max_itr))
     
     
     lambda_e, in_lambda_e = np.zeros(self.K), np.zeros(self.K)
@@ -513,14 +535,16 @@ class decoding(coding):
       
       if self.output_all_iterations:#output 2D EST_information
         res = in_res[self.turbo_deint]
-        EST_infromation[:,i] = (res < 0).astype(int)
+        EST_information[:,i] = (res < 0).astype(int)
 
     # Final post-decoding LLRs and hard decisions
     if self.output_all_iterations==False:
       res = in_res[self.turbo_deint]
-      EST_infromation = (res < 0).astype(int)
+      EST_information = (res < 0).astype(int)
+      
+    #print(EST_information.shape)
 
-    return EST_infromation
+    return EST_information
 
 
 # In[118]:
@@ -551,7 +575,7 @@ class turbo_code(encoding,decoding):
 
 if __name__=="__main__":
   tc=turbo_code(500)
-  print(tc.turbo_int)
+  #print(tc.turbo_int)
   def output(EbNodB):
 
     #prepare some constants
@@ -569,7 +593,7 @@ if __name__=="__main__":
       #main calcuration
       information,EST_information=tc.main_func(EbNodB)
       print(EST_information.shape)
-      EST_information=EST_information[:,EST_information.shape[1]-1]
+      #EST_information=EST_information[:,EST_information.shape[1]-1]
       #information,EST_information=tc.main_func(EbNodB)
       
       #calculate block error rate

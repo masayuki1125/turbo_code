@@ -7,7 +7,7 @@
 import numpy as np
 import ray
 import pickle
-from turbo_code import turbo_code
+from PAM import PAM
 from AWGN import _AWGN
 
 
@@ -34,8 +34,8 @@ def output(dumped,EbNodB):
 
         #prepare some constants
         #MAX_ERR=1
-        MAX_BITALL=10**6
-        MAX_BITERR=10**3
+        MAX_BITALL=10**4
+        MAX_BITERR=10**2
         count_bitall=0
         count_biterr=0
         count_all=0
@@ -66,9 +66,9 @@ class MC():
         self.TX_antenna=1
         self.RX_antenna=1
         self.MAX_ERR=8
-        self.EbNodB_start=-5
-        self.EbNodB_end=-4
-        self.EbNodB_range=np.arange(self.EbNodB_start,self.EbNodB_end,0.2) #0.2dBごとに測定
+        self.EbNodB_start=0
+        self.EbNodB_end=5
+        self.EbNodB_range=np.arange(self.EbNodB_start,self.EbNodB_end,0.5) #0.2dBごとに測定
         self.max_itr=18
 
         
@@ -152,24 +152,26 @@ class MC():
 
 
 #毎回書き換える関数
-class savetxt(turbo_code,_AWGN,MC):
+class savetxt():
 
   def __init__(self,K):
-    super().__init__(K)   
+    self.ch=_AWGN()
+    self.cd=PAM(K)
+    self.mc=MC() 
 
   def savetxt(self,BLER,BER):
 
-    with open(self.filename,'w') as f:
+    with open(self.cd.filename,'w') as f:
 
-        print("#N="+str(self.K),file=f)
-        print("#TX_antenna="+str(self.TX_antenna),file=f)
-        print("#RX_antenna="+str(self.RX_antenna),file=f)
-        print("#modulation_symbol="+str(self.M),file=f)
-        print("#MAX_BLER="+str(self.MAX_ERR),file=f)
-        print("#iteration number="+str(self.max_itr),file=f)
+        print("#N="+str(self.cd.K),file=f)
+        print("#TX_antenna="+str(self.mc.TX_antenna),file=f)
+        print("#RX_antenna="+str(self.mc.RX_antenna),file=f)
+        print("#modulation_symbol="+str(self.ch.M),file=f)
+        print("#MAX_BLER="+str(self.mc.MAX_ERR),file=f)
+        print("#iteration number="+str(self.mc.max_itr),file=f)
         print("#EsNodB,BLER,BER",file=f) 
-        for i in range(len(self.EbNodB_range)):
-            print(str(self.EbNodB_range[i]),str(BLER[i]),str(BER[i]),file=f)
+        for i in range(len(self.mc.EbNodB_range)):
+            print(str(self.mc.EbNodB_range[i]),str(BLER[i]),str(BER[i]),file=f)
 
 
 # In[ ]:
@@ -177,11 +179,11 @@ class savetxt(turbo_code,_AWGN,MC):
 if __name__=="__main__":
     mc=MC()
 
-    N_list=[128]
+    N_list=[1024,2048,4096]
     result_ids_array=[]
     print(mc.EbNodB_range)
     for i,N in enumerate(N_list):
-        cd=turbo_code(N)
+        cd=PAM(N)
         dumped=pickle.dumps(cd)
         print("N=",N)
         result_ids_array.append(mc.monte_carlo_get_ids(dumped))
