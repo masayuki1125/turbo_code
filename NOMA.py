@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[48]:
+# In[12]:
 
 
 import numpy as np
@@ -19,31 +19,37 @@ from AWGN import _AWGN
 #④β=β1/β2とし、Weak Userの受信SNRを変化させて、全体のsystemのBERを測定する
 
 
-# In[50]:
+# In[13]:
 
 
 class NOMA():
-  def __init__(self,K):
-    self.K=512
-    self.N=K*2
+  def __init__(self,K,beta1=0.2):
+    self.K=K
+    self.N=self.K*2
+    self.N1=self.N//2
+    self.K1=self.K//2
+    self.N2=self.N//2
+    self.K2=self.K//2
     #EbNodB1>EbNodB2
     #User1=Strong User(Fixed)
     #User2=Weak User
-    self.EbNodB1=10
+    self.EbNodB_diff=10
     
     #Strong Userの受信SNから、βを決定する
-    self.beta=0.1
+    
+    self.beta=(beta1**(1/2))/((1-beta1)**(1/2))
+    print(self.beta)
     
     #self.EbNodB2 change
     
-    EbNo1 = 10 ** (self.EbNodB1 / 10)
-    self.No1=1/EbNo1
+    #EbNo1 = 10 ** (self.EbNodB1 / 10)
+    #self.No1=1/EbNo1
     
     self.ch=_AWGN()
-    self.cd1=turbo_code(self.K//2)
-    self.cd2=turbo_code(self.K//2)
+    self.cd1=turbo_code(self.K1)
+    self.cd2=turbo_code(self.K2)
     
-    self.filename="NOMA_turbo_{}_{}".format(self.N,self.K)
+    self.filename="NOMA_turbo_{}_{}_{}".format(self.beta,self.N,self.K)
     
   def NOMA_encode(self):
     info1,cwd1=self.cd1.turbo_encode()
@@ -51,7 +57,7 @@ class NOMA():
     return info1,info2,cwd1,cwd2
 
 
-# In[51]:
+# In[16]:
 
 
 '''
@@ -65,7 +71,7 @@ class NOMA(NOMA):
 '''
 
 
-# In[52]:
+# In[14]:
 
 
 class NOMA(NOMA):
@@ -86,7 +92,7 @@ class NOMA(NOMA):
     output estimated information
     '''
     
-    EST_info2=self.decode2(res_const,self.No1+self.beta)
+    EST_info2=self.decode2(res_const,No1+self.beta)
     
     #re encode polar code
     #print(len(EST_info2))
@@ -97,7 +103,7 @@ class NOMA(NOMA):
 
     RX_const=res_const-EST_const2
 
-    Lc=-1*self.ch.demodulate(RX_const,self.No1/self.beta)
+    Lc=-1*self.ch.demodulate(RX_const,No1/self.beta)
     EST_cwd1=self.cd1.turbo_decode(Lc)
     
     return EST_cwd1
@@ -116,13 +122,17 @@ class NOMA(NOMA):
     return EST_cwd1,EST_cwd2
   
   def main_func(self,EbNodB2):
-    #make No2
+    #make No1 and No2
+    EbNodB1=EbNodB2+self.EbNodB_diff
+    EbNo1 = 10 ** (EbNodB1 / 10)
+    No1=1/EbNo1
+    
     EbNo2 = 10 ** (EbNodB2 / 10)
     No2=1/EbNo2
     
     info1,info2,cwd1,cwd2=self.NOMA_encode()
     res_const=self.channel(cwd1,cwd2,self.beta)
-    EST_info1,EST_info2=self.NOMA_decode(res_const,self.No1,No2)
+    EST_info1,EST_info2=self.NOMA_decode(res_const,No1,No2)
     
     #info=np.concatenate([info1,info2])
     info=np.concatenate([info1,info2])
@@ -132,13 +142,13 @@ class NOMA(NOMA):
     
 
 
-# In[53]:
+# In[19]:
 
 
 if __name__=="__main__":
   K=512
   ma=NOMA(K)
-  a,b=ma.main_func(1)
-  print(a)
+  a,b=ma.main_func(2)
+  #print(a)
   print(np.sum(a!=b))
 

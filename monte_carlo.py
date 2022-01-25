@@ -65,9 +65,9 @@ class MC():
     def __init__(self):
         self.TX_antenna=1
         self.RX_antenna=1
-        self.MAX_ERR=8
-        self.EbNodB_start=0
-        self.EbNodB_end=5
+        self.MAX_ERR=10
+        self.EbNodB_start=-1
+        self.EbNodB_end=4
         self.EbNodB_range=np.arange(self.EbNodB_start,self.EbNodB_end,0.5) #0.2dBごとに測定
         self.max_itr=18
 
@@ -179,7 +179,7 @@ class savetxt():
 if __name__=="__main__":
     mc=MC()
 
-    N_list=[1024,2048,4096]
+    N_list=[512,1024,2048]
     result_ids_array=[]
     print(mc.EbNodB_range)
     for i,N in enumerate(N_list):

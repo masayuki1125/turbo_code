@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[46]:
+# In[1]:
 
 
 import numpy as np
@@ -10,28 +10,28 @@ from AWGN import _AWGN
 #import sympy as sym
 
 
-# In[47]:
+# In[2]:
 
 
 class PAM():
-  def __init__(self,N):
-    self.N=N
-    self.K=N//2
+  def __init__(self,K,beta1=0.2):
+    self.K=K
+    self.N=self.K*2
+    
     #EbNodB1>EbNodB2
-    self.EbNodB1=20
-    #self.EbNodB2=10
+    #User1=Strong User(Fixed)
+    #User2=Weak User
+    self.EbNodB_diff=10
     
-    EbNo1 = 10 ** (self.EbNodB1 / 10)
-    self.No1=1/EbNo1
-    #EbNo2 = 10 ** (self.EbNodB2 / 10)
-    #self.No2=1/EbNo2
+    #Strong Userの受信SNから、βを決定する
     
-    self.beta=0.1
+    self.beta=(beta1**(1/2))/((1-beta1)**(1/2))
+    print(self.beta)
     
     self.ch=_AWGN()
-    self.cd=turbo_code(self.N)
+    self.cd=turbo_code(self.K)
     
-    self.filename="PAM_turbo_mod2{}_{}".format(self.N,self.K)
+    self.filename="PAM_turbo_BICM_{}_{}_{}".format(self.beta,self.N,self.K)
     
     #self.intleav,self.deintleav=self.interleaver(N)
     
@@ -126,7 +126,11 @@ class PAM():
     return EST_cwd1,EST_cwd2
   
   def main_func(self,EbNodB2):
-    #calc No2
+    #make No1 and No2
+    EbNodB1=EbNodB2+self.EbNodB_diff
+    EbNo1 = 10 ** (EbNodB1 / 10)
+    No1=1/EbNo1
+    
     EbNo2 = 10 ** (EbNodB2 / 10)
     No2=1/EbNo2
     
@@ -135,19 +139,19 @@ class PAM():
     res_const=self.channel(cwd,self.beta)
     
     
-    EST_info1,EST_info2=self.PAM_decode(res_const,self.No1,No2)
+    EST_info1,EST_info2=self.PAM_decode(res_const,No1,No2)
 
     EST_info=np.concatenate([EST_info1,EST_info2])
     
     return info,EST_info
 
 
-# In[50]:
+# In[6]:
 
 
 if __name__=="__main__":
   ma=PAM(512)
-  a,b=ma.main_func(3)
+  a,b=ma.main_func(1)
   #print(a)
   #print(b)
   print(np.sum(a!=b))
